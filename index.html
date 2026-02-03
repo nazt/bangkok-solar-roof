@@ -1,625 +1,1054 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Bangkok Solar Roof</title>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bangkok Solar Roof | Volt Oracle</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Inter', system-ui, sans-serif; background: #0a0a1a; }
+        :root {
+            /* Header - Teal gradient */
+            --header-start: #0D9488;
+            --header-end: #14B8A6;
+            --header-gradient: linear-gradient(90deg, var(--header-start), var(--header-end));
+
+            /* Filter Bar - Amber/Gold */
+            --filter-bg: #F59E0B;
+            --filter-text: #78350F;
+
+            /* Primary Stats */
+            --stat-color: #0D9488;
+            --stat-highlight: #14B8A6;
+
+            /* Chart Colors */
+            --chart-large: #DC2626;
+            --chart-medium: #F59E0B;
+            --chart-small: #6B7280;
+
+            /* Backgrounds */
+            --bg-page: #F0FDFA;
+            --bg-card: #FFFFFF;
+            --bg-featured: #FEF3C7;
+            --bg-mint: #ECFDF5;
+
+            /* Text */
+            --text-dark: #134E4A;
+            --text-muted: #5B7574;
+            --text-light: #9CA3AF;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-page);
+            color: var(--text-dark);
+            overflow: hidden;
+            height: 100vh;
+        }
 
         /* Header */
         .header {
+            background: var(--header-gradient);
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
-            height: 60px;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            display: flex;
-            align-items: center;
-            padding: 0 20px;
-            z-index: 2000;
-            box-shadow: 0 2px 20px rgba(0,0,0,0.3);
+            z-index: 1000;
         }
+
         .logo {
             display: flex;
             align-items: center;
             gap: 12px;
             color: white;
+        }
+
+        .logo svg {
+            width: 32px;
+            height: 32px;
+        }
+
+        .logo-text {
             font-weight: 700;
-            font-size: 1.2em;
+            font-size: 1.25rem;
+            letter-spacing: -0.02em;
         }
-        .logo-icon {
-            width: 36px;
-            height: 36px;
-            background: linear-gradient(135deg, #e040fb, #7c4dff);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.4em;
-        }
+
         .nav {
             display: flex;
             gap: 8px;
-            margin-left: 40px;
         }
+
         .nav a {
-            color: rgba(255,255,255,0.7);
+            color: rgba(255,255,255,0.8);
             text-decoration: none;
             padding: 8px 16px;
             border-radius: 6px;
-            font-size: 0.9em;
             font-weight: 500;
+            font-size: 0.875rem;
             transition: all 0.2s;
-            cursor: pointer;
         }
-        .nav a:hover, .nav a.active {
-            color: white;
-            background: rgba(255,255,255,0.1);
-        }
-        .nav a.active { background: rgba(224,64,251,0.2); color: #e040fb; }
 
-        /* Map */
+        .nav a:hover, .nav a.active {
+            background: rgba(255,255,255,0.15);
+            color: white;
+        }
+
+        .nav a.active {
+            background: rgba(255,255,255,0.25);
+        }
+
+        /* Map Container */
         #map {
             position: fixed;
             top: 60px;
             left: 0;
             right: 0;
             bottom: 0;
+            z-index: 1;
         }
 
-        /* Data Overlay Panel */
-        .data-panel {
+        /* Filter Bar */
+        .filter-bar {
             position: fixed;
             top: 60px;
             left: 0;
-            width: 420px;
+            right: 0;
+            background: var(--filter-bg);
+            height: 50px;
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            gap: 16px;
+            z-index: 100;
+        }
+
+        .filter-label {
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: var(--filter-text);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .filter-dropdown {
+            background: rgba(255,255,255,0.9);
+            border: none;
+            padding: 8px 32px 8px 12px;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.875rem;
+            color: var(--text-dark);
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23134E4A' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+        }
+
+        .filter-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-family: inherit;
+            font-weight: 500;
+            font-size: 0.75rem;
+            color: var(--filter-text);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: rgba(255,255,255,0.4);
+        }
+
+        .btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Stats Panel */
+        .stats-panel {
+            position: fixed;
             bottom: 0;
-            background: white;
-            z-index: 1500;
+            left: 0;
+            right: 0;
+            background: var(--bg-card);
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+            z-index: 100;
+            max-height: 70vh;
             overflow-y: auto;
-            box-shadow: 4px 0 20px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .data-panel.hidden {
-            transform: translateX(-100%);
+
+        .stats-panel.hidden {
+            transform: translateY(calc(100% - 80px));
         }
-        .panel-header {
-            padding: 20px;
-            border-bottom: 1px solid #eee;
+
+        /* Drag Handle */
+        .panel-handle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 24px;
+            background: var(--bg-card);
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .handle-center {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            padding: 4px 24px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+
+        .handle-center:hover {
+            background: var(--bg-mint);
+        }
+
+        .handle-bar {
+            width: 40px;
+            height: 4px;
+            background: var(--text-light);
+            border-radius: 2px;
+            margin-bottom: 6px;
+            transition: all 0.2s;
+        }
+
+        .handle-center:hover .handle-bar {
+            background: var(--stat-color);
+            width: 60px;
+        }
+
+        .handle-label {
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: color 0.2s;
+        }
+
+        .handle-center:hover .handle-label {
+            color: var(--stat-color);
+        }
+
+        .handle-label svg {
+            width: 12px;
+            height: 12px;
+            transition: transform 0.3s;
+        }
+
+        .stats-panel.hidden .handle-label svg {
+            transform: rotate(180deg);
+        }
+
+        .handle-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .handle-btn {
+            background: var(--bg-mint);
+            border: none;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 0.7rem;
+            color: var(--stat-color);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+
+        .handle-btn:hover {
+            background: var(--stat-color);
+            color: white;
+        }
+
+        .handle-btn svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .handle-spacer {
+            width: 120px;
+        }
+
+        .stats-content {
+            padding: 0 24px 24px;
+        }
+
+        /* Hero Stat */
+        .hero-stat {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
+            margin-bottom: 24px;
+            padding-bottom: 24px;
+            border-bottom: 1px dashed var(--text-light);
         }
-        .panel-title h2 {
-            font-size: 1.3em;
-            color: #1a1a2e;
+
+        .hero-stat h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-dark);
             margin-bottom: 4px;
         }
-        .panel-title p {
-            font-size: 0.85em;
-            color: #888;
+
+        .hero-stat .subtitle {
+            color: var(--text-muted);
+            font-size: 0.875rem;
         }
-        .big-stat {
-            text-align: right;
-        }
-        .big-stat .number {
-            font-size: 2.8em;
+
+        .hero-number {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 3.5rem;
             font-weight: 700;
-            color: #e040fb;
+            color: var(--stat-color);
             line-height: 1;
         }
-        .big-stat .unit {
-            font-size: 0.9em;
-            color: #666;
-        }
-        .panel-toggle {
-            position: fixed;
-            left: 420px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: white;
-            border: none;
-            padding: 12px 8px;
-            border-radius: 0 8px 8px 0;
-            cursor: pointer;
-            box-shadow: 4px 0 10px rgba(0,0,0,0.1);
-            z-index: 1501;
-            transition: left 0.3s ease;
-        }
-        .panel-toggle.collapsed { left: 0; }
 
-        /* Chart Section */
-        .chart-section {
-            padding: 20px;
-            border-bottom: 1px solid #eee;
+        .hero-number .unit {
+            font-size: 1.25rem;
+            color: var(--stat-highlight);
+            margin-left: 4px;
         }
-        .chart-section h3 {
-            font-size: 0.85em;
-            color: #888;
-            margin-bottom: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .bar-chart {
-            display: flex;
-            gap: 2px;
-            height: 60px;
-            align-items: flex-end;
-        }
-        .bar {
-            flex: 1;
-            background: linear-gradient(to top, #e040fb, #7c4dff);
-            border-radius: 2px 2px 0 0;
-            min-height: 4px;
-        }
-        .breakdown {
-            display: flex;
-            gap: 20px;
+
+        .hero-meta {
+            color: var(--text-muted);
+            font-size: 0.75rem;
             margin-top: 16px;
         }
-        .breakdown-item {
-            flex: 1;
-        }
-        .breakdown-item .pct {
-            font-size: 1.4em;
-            font-weight: 700;
-            color: #1a1a2e;
-        }
-        .breakdown-item .label {
-            font-size: 0.8em;
-            color: #888;
-        }
-        .breakdown-item .value {
-            font-size: 0.9em;
-            font-weight: 600;
-            color: #e040fb;
+
+        /* Stacked Bar */
+        .stacked-bar-container {
+            margin-bottom: 24px;
         }
 
-        /* Rankings */
-        .rankings {
-            padding: 20px;
-            border-bottom: 1px solid #eee;
+        .stacked-bar {
+            display: flex;
+            height: 40px;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 16px;
         }
-        .rankings h3 {
-            font-size: 0.85em;
-            color: #888;
-            margin-bottom: 12px;
-            text-transform: uppercase;
-        }
-        .ranking-item {
+
+        .bar-segment {
             display: flex;
             align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid #f5f5f5;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.75rem;
+            transition: all 0.3s;
         }
-        .ranking-item:last-child { border-bottom: none; }
-        .rank-num {
+
+        .bar-segment.large { background: var(--chart-large); }
+        .bar-segment.medium { background: var(--chart-medium); }
+        .bar-segment.small { background: var(--chart-small); }
+
+        .breakdown-legend {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .legend-item {
+            display: flex;
+            flex-direction: column;
+            border-left: 3px solid;
+            padding-left: 12px;
+        }
+
+        .legend-item.large { border-color: var(--chart-large); }
+        .legend-item.medium { border-color: var(--chart-medium); }
+        .legend-item.small { border-color: var(--chart-small); }
+
+        .legend-percent {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .legend-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin: 2px 0;
+        }
+
+        .legend-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .legend-item.large .legend-value { color: var(--chart-large); }
+        .legend-item.medium .legend-value { color: var(--chart-medium); }
+        .legend-item.small .legend-value { color: var(--chart-small); }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .stat-card {
+            background: var(--bg-mint);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .stat-card.featured {
+            background: var(--bg-featured);
+        }
+
+        .stat-card-icon {
             width: 24px;
-            font-size: 0.85em;
-            color: #888;
+            height: 24px;
+            color: var(--stat-color);
+            margin-bottom: 12px;
         }
-        .rank-name {
+
+        .stat-card.featured .stat-card-icon {
+            color: #D97706;
+        }
+
+        .stat-card h3 {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .stat-card .value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--stat-color);
+        }
+
+        .stat-card.featured .value {
+            color: #D97706;
+        }
+
+        .stat-card .meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Top 10 Section */
+        .top10-section {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px dashed var(--text-light);
+        }
+
+        .top10-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .top10-header h3 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .top10-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px 24px;
+        }
+
+        .top10-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+        }
+
+        .top10-rank {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            width: 20px;
+        }
+
+        .top10-name {
             flex: 1;
-            font-size: 0.9em;
-            color: #333;
+            font-size: 0.875rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        .rank-bar {
+
+        .top10-bar {
             width: 80px;
             height: 8px;
-            background: #f0f0f0;
+            background: #E5E7EB;
             border-radius: 4px;
-            margin-right: 10px;
             overflow: hidden;
         }
-        .rank-bar-fill {
+
+        .top10-bar-fill {
             height: 100%;
-            background: linear-gradient(90deg, #e040fb, #7c4dff);
+            background: var(--stat-color);
             border-radius: 4px;
         }
-        .rank-value {
-            font-size: 0.85em;
+
+        .top10-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
             font-weight: 600;
-            color: #e040fb;
-            width: 70px;
+            color: var(--text-dark);
+            width: 60px;
             text-align: right;
         }
 
-        /* Summary Stats */
-        .summary-stats {
-            padding: 20px;
-            background: #f8f8f8;
-        }
-        .stat-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-        }
-        .stat-card {
-            background: white;
-            padding: 16px;
-            border-radius: 8px;
-        }
-        .stat-card .icon {
-            font-size: 1.5em;
-            margin-bottom: 8px;
-        }
-        .stat-card .value {
-            font-size: 1.4em;
-            font-weight: 700;
-            color: #1a1a2e;
-        }
-        .stat-card .label {
-            font-size: 0.8em;
-            color: #888;
-        }
-
-        /* Right Sidebar */
-        .sidebar {
+        /* Search Box */
+        .search-box {
             position: fixed;
-            top: 80px;
+            bottom: calc(70vh + 20px);
             right: 20px;
             background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            z-index: 1000;
+            border-radius: 8px;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 50;
+        }
+
+        .search-box input {
+            border: none;
+            outline: none;
+            font-family: inherit;
+            font-size: 0.875rem;
             width: 200px;
         }
-        .sidebar-item {
+
+        .search-box input::placeholder {
+            color: var(--text-light);
+        }
+
+        /* Map Controls */
+        .map-controls {
+            position: fixed;
+            right: 20px;
+            top: 130px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 50;
+        }
+
+        .map-btn {
+            width: 40px;
+            height: 40px;
+            background: white;
+            border: none;
+            border-radius: 8px;
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            padding: 12px 14px;
-            border-bottom: 1px solid #f0f0f0;
-            font-size: 0.85em;
-        }
-        .sidebar-item:last-child { border-bottom: none; }
-        .toggle {
-            width: 40px;
-            height: 22px;
-            background: #e0e0e0;
-            border-radius: 11px;
-            position: relative;
+            justify-content: center;
             cursor: pointer;
-            transition: background 0.2s;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            transition: all 0.2s;
         }
-        .toggle.active { background: #e040fb; }
-        .toggle::after {
-            content: '';
-            position: absolute;
-            width: 18px;
-            height: 18px;
-            background: white;
-            border-radius: 50%;
-            top: 2px;
-            left: 2px;
-            transition: left 0.2s;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+
+        .map-btn:hover {
+            background: var(--bg-mint);
         }
-        .toggle.active::after { left: 20px; }
+
+        .map-btn.active {
+            background: var(--stat-color);
+        }
+
+        .map-btn.active svg {
+            color: white;
+        }
+
+        .map-btn svg {
+            width: 20px;
+            height: 20px;
+            color: var(--text-dark);
+        }
 
         /* Loading */
-        .loading {
+        .loading-overlay {
             position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: #1a1a2e;
-            color: white;
-            padding: 20px 40px;
-            border-radius: 12px;
-            z-index: 3000;
+            inset: 0;
+            background: rgba(240, 253, 250, 0.95);
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 12px;
+            justify-content: center;
+            z-index: 2000;
         }
-        .spinner {
-            width: 24px;
-            height: 24px;
-            border: 3px solid rgba(255,255,255,0.2);
-            border-top-color: #e040fb;
+
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--bg-mint);
+            border-top-color: var(--stat-color);
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .hidden { display: none !important; }
 
-        /* Popup */
-        .leaflet-popup-content-wrapper { border-radius: 12px; }
-        .leaflet-popup-content { margin: 14px 16px; font-family: 'Inter', sans-serif; }
-        .popup-title { font-weight: 600; margin-bottom: 8px; color: #1a1a2e; }
-        .popup-stat { display: flex; justify-content: space-between; margin: 4px 0; font-size: 0.9em; }
-        .popup-stat-value { font-weight: 600; color: #e040fb; }
-        .popup-badge { margin-top: 8px; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; font-weight: 500; }
-        .popup-badge.good { background: #e8f5e9; color: #2e7d32; }
-        .popup-badge.small { background: #fff3e0; color: #ef6c00; }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 16px;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero-stat {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .hero-number {
+                font-size: 2.5rem;
+            }
+
+            .breakdown-legend {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .top10-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
     <!-- Header -->
     <header class="header">
         <div class="logo">
-            <div class="logo-icon">⚡</div>
-            <span>Bangkok Solar Roof</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+            </svg>
+            <span class="logo-text">Bangkok Solar Roof</span>
         </div>
         <nav class="nav">
-            <a class="active" onclick="toggleDataPanel()">DATA</a>
-            <a href="https://github.com/nazt/bangkok-solar-roof" target="_blank">GITHUB</a>
-            <a onclick="alert('Download: bangkok_full.json (1.7GB) or CSV (253MB)')">DOWNLOAD</a>
-            <a onclick="showInfo()">INFO</a>
+            <a href="#" class="active">EXPLORE</a>
+            <a href="#">DOWNLOAD</a>
+            <a href="#">INFO</a>
         </nav>
     </header>
 
-    <!-- Loading -->
-    <div id="loading" class="loading">
-        <div class="spinner"></div>
-        Loading 50,000 buildings...
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <span class="filter-label">Filter</span>
+        <select class="filter-dropdown" id="districtFilter">
+            <option value="all">All Districts</option>
+        </select>
+        <select class="filter-dropdown" id="sizeFilter">
+            <option value="all">All Roof Sizes</option>
+            <option value="large">Large (≥500m²)</option>
+            <option value="medium">Medium (50-500m²)</option>
+            <option value="small">Small (<50m²)</option>
+        </select>
     </div>
-
-    <!-- Data Panel -->
-    <div class="data-panel" id="dataPanel">
-        <div class="panel-header">
-            <div class="panel-title">
-                <h2>Total Solar Potential</h2>
-                <p>Bangkok, Thailand · 3.26M buildings</p>
-            </div>
-            <div class="big-stat">
-                <div class="number" id="totalTWh">117.65</div>
-                <div class="unit">TWh/year</div>
-            </div>
-        </div>
-
-        <div class="chart-section">
-            <h3>Distribution by District (sample)</h3>
-            <div class="bar-chart" id="barChart"></div>
-            <div class="breakdown">
-                <div class="breakdown-item">
-                    <div class="pct" id="pctResidential">35.6%</div>
-                    <div class="label">Residential</div>
-                    <div class="value" id="mwResidential">41.9 TWh</div>
-                </div>
-                <div class="breakdown-item">
-                    <div class="pct" id="pctCommercial">28.3%</div>
-                    <div class="label">Commercial</div>
-                    <div class="value" id="mwCommercial">33.3 TWh</div>
-                </div>
-                <div class="breakdown-item">
-                    <div class="pct" id="pctIndustrial">36.1%</div>
-                    <div class="label">Industrial</div>
-                    <div class="value" id="mwIndustrial">42.5 TWh</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="rankings">
-            <h3>Top Areas by Solar Potential</h3>
-            <div id="rankingsList">
-                <!-- Populated by JS -->
-            </div>
-        </div>
-
-        <div class="summary-stats">
-            <div class="stat-grid">
-                <div class="stat-card">
-                    <div class="icon">🏢</div>
-                    <div class="value" id="statBuildings">3.26M</div>
-                    <div class="label">Total Buildings</div>
-                </div>
-                <div class="stat-card">
-                    <div class="icon">📐</div>
-                    <div class="value" id="statArea">460 km²</div>
-                    <div class="label">Roof Area</div>
-                </div>
-                <div class="stat-card">
-                    <div class="icon">☀️</div>
-                    <div class="value" id="statSolarReady">2.1M</div>
-                    <div class="label">Solar Ready</div>
-                </div>
-                <div class="stat-card">
-                    <div class="icon">💰</div>
-                    <div class="value" id="statValue">฿470B</div>
-                    <div class="label">Annual Value</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <button class="panel-toggle" id="panelToggle" onclick="toggleDataPanel()">◀</button>
 
     <!-- Map -->
     <div id="map"></div>
 
-    <!-- Right Sidebar -->
-    <div class="sidebar">
-        <div class="sidebar-item">
-            <span>☀️ Buildings</span>
-            <div class="toggle active" id="toggleBuildings" onclick="toggleLayer('buildings')"></div>
+    <!-- Search Box -->
+    <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input type="text" placeholder="Zoom to area (e.g. Sukhumvit)">
+    </div>
+
+    <!-- Map Controls -->
+    <div class="map-controls">
+        <button class="map-btn" title="Zoom In" onclick="map.zoomIn()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 5v14M5 12h14"/>
+            </svg>
+        </button>
+        <button class="map-btn" title="Zoom Out" onclick="map.zoomOut()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14"/>
+            </svg>
+        </button>
+        <button class="map-btn" title="My Location">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+            </svg>
+        </button>
+        <button class="map-btn" id="satBtn" title="Toggle Satellite" onclick="toggleSatellite()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <path d="M3 9h18M9 3v18"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Stats Panel -->
+    <div class="stats-panel" id="statsPanel">
+        <!-- Drag Handle -->
+        <div class="panel-handle">
+            <div class="handle-spacer"></div>
+            <div class="handle-center" id="panelHandle">
+                <div class="handle-bar"></div>
+                <span class="handle-label">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 15l-6-6-6 6"/>
+                    </svg>
+                    <span id="handleText">Tap to collapse</span>
+                </span>
+            </div>
+            <div class="handle-actions">
+                <button class="handle-btn" id="toggleBtn" onclick="togglePanel()">
+                    <svg id="toggleIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 9l-7 7-7-7"/>
+                    </svg>
+                    <span id="toggleText">Hide</span>
+                </button>
+            </div>
         </div>
-        <div class="sidebar-item">
-            <span>🗺️ Districts</span>
-            <div class="toggle" id="toggleDistrict" onclick="toggleLayer('district')"></div>
+        <div class="stats-content">
+            <!-- Hero Stat -->
+            <div class="hero-stat">
+                <div>
+                    <h2>Total Estimated Solar Potential</h2>
+                    <p class="subtitle">(Bangkok Metropolitan Area)</p>
+                    <p class="hero-meta">Based on data from 3.26 million buildings with solar power capacity</p>
+                </div>
+                <div>
+                    <div class="hero-number" id="heroNumber">117<span class="unit">TWh/year</span></div>
+                </div>
+            </div>
+
+            <!-- Stacked Bar Chart -->
+            <div class="stacked-bar-container">
+                <div class="stacked-bar">
+                    <div class="bar-segment large" style="width: 15%" id="barLarge">15%</div>
+                    <div class="bar-segment medium" style="width: 50%" id="barMedium">50%</div>
+                    <div class="bar-segment small" style="width: 35%" id="barSmall">35%</div>
+                </div>
+                <div class="breakdown-legend">
+                    <div class="legend-item large">
+                        <span class="legend-percent" id="pctLarge">15%</span>
+                        <span class="legend-label">Large (≥500m²)</span>
+                        <span class="legend-value" id="valLarge">17.55 TWh</span>
+                    </div>
+                    <div class="legend-item medium">
+                        <span class="legend-percent" id="pctMedium">50%</span>
+                        <span class="legend-label">Medium (50-500m²)</span>
+                        <span class="legend-value" id="valMedium">58.5 TWh</span>
+                    </div>
+                    <div class="legend-item small">
+                        <span class="legend-percent" id="pctSmall">35%</span>
+                        <span class="legend-label">Small (<50m²)</span>
+                        <span class="legend-value" id="valSmall">40.95 TWh</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <svg class="stat-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        <path d="M3 9h18"/>
+                    </svg>
+                    <h3>Total Building Rooftop Area</h3>
+                    <div class="value" id="totalArea">460.12</div>
+                    <div class="meta">km²</div>
+                </div>
+                <div class="stat-card">
+                    <svg class="stat-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 21h18M9 8h1M9 12h1M9 16h1M14 8h1M14 12h1M14 16h1M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/>
+                    </svg>
+                    <h3>Total Buildings</h3>
+                    <div class="value" id="totalBuildings">3,260,000</div>
+                    <div class="meta">buildings</div>
+                </div>
+                <div class="stat-card">
+                    <svg class="stat-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 3v18M3 12h18"/>
+                        <circle cx="12" cy="12" r="9"/>
+                    </svg>
+                    <h3>Solar Ready Buildings</h3>
+                    <div class="value" id="solarReady">2,100,000</div>
+                    <div class="meta">buildings ≥50m²</div>
+                </div>
+                <div class="stat-card featured">
+                    <svg class="stat-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"/>
+                        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                    </svg>
+                    <h3>Solar Potential</h3>
+                    <div class="value" id="solarPotential">117,000</div>
+                    <div class="meta">MW peak capacity</div>
+                </div>
+            </div>
+
+            <!-- Top 10 Section -->
+            <div class="top10-section">
+                <div class="top10-header">
+                    <h3>Top 10 Districts by Solar Potential</h3>
+                    <select class="filter-dropdown">
+                        <option>By Potential</option>
+                        <option>By Buildings</option>
+                        <option>By Area</option>
+                    </select>
+                </div>
+                <div class="top10-grid" id="top10Grid">
+                    <!-- Will be populated by JS -->
+                </div>
+            </div>
         </div>
-        <div class="sidebar-item">
-            <span>🌡️ Heatmap</span>
-            <div class="toggle" id="toggleHeatmap" onclick="toggleLayer('heatmap')"></div>
-        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading">
+        <div class="loading-spinner"></div>
+        <p class="loading-text" id="loadingText">Loading buildings...</p>
     </div>
 
     <script>
         // Initialize map
-        const map = L.map('map', { zoomControl: false }).setView([13.75, 100.50], 12);
-        L.control.zoom({ position: 'bottomright' }).addTo(map);
+        const map = L.map('map', {
+            zoomControl: false
+        }).setView([13.75, 100.55], 11);
 
-        L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-            attribution: 'Google Satellite'
-        }).addTo(map);
+        // Tile layers
+        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        });
 
-        let buildingsLayer = L.layerGroup().addTo(map);
-        let allFeatures = [];
+        const satelliteLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            attribution: '© Google Satellite'
+        });
 
-        // Bangkok districts for demo
-        const districts = [
-            { name: 'Bang Kapi', lat: 13.7649, lon: 100.6469 },
-            { name: 'Lat Phrao', lat: 13.8167, lon: 100.5619 },
-            { name: 'Chatuchak', lat: 13.8199, lon: 100.5533 },
-            { name: 'Bang Sue', lat: 13.8265, lon: 100.5180 },
-            { name: 'Huai Khwang', lat: 13.7820, lon: 100.5742 },
-            { name: 'Din Daeng', lat: 13.7696, lon: 100.5536 },
-            { name: 'Phaya Thai', lat: 13.7727, lon: 100.5366 },
-            { name: 'Ratchathewi', lat: 13.7526, lon: 100.5313 },
-            { name: 'Pathum Wan', lat: 13.7466, lon: 100.5347 },
-            { name: 'Khlong Toei', lat: 13.7127, lon: 100.5834 },
+        // Start with OSM
+        let isSatellite = false;
+        osmLayer.addTo(map);
+
+        // Toggle satellite
+        function toggleSatellite() {
+            if (isSatellite) {
+                map.removeLayer(satelliteLayer);
+                osmLayer.addTo(map);
+                document.getElementById('satBtn').classList.remove('active');
+            } else {
+                map.removeLayer(osmLayer);
+                satelliteLayer.addTo(map);
+                document.getElementById('satBtn').classList.add('active');
+            }
+            isSatellite = !isSatellite;
+        }
+
+        // Building colors
+        function getColor(area) {
+            if (area >= 500) return '#DC2626'; // Large - Red
+            if (area >= 50) return '#F59E0B';  // Medium - Amber
+            return '#6B7280';                   // Small - Gray
+        }
+
+        // Format numbers
+        function formatNumber(n) {
+            if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+            if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+            return n.toLocaleString();
+        }
+
+        // Top 10 sample data (will be replaced with real data)
+        const top10Data = [
+            { name: 'Bang Kapi', value: 12.5 },
+            { name: 'Khlong Toei', value: 11.2 },
+            { name: 'Chatuchak', value: 10.8 },
+            { name: 'Bang Khun Thian', value: 9.5 },
+            { name: 'Prawet', value: 8.9 },
+            { name: 'Lat Krabang', value: 8.4 },
+            { name: 'Suan Luang', value: 7.8 },
+            { name: 'Bang Na', value: 7.2 },
+            { name: 'Saphan Sung', value: 6.9 },
+            { name: 'Nong Chok', value: 6.5 }
         ];
 
-        function getMinAreaForZoom(zoom) {
-            if (zoom >= 17) return 0;
-            if (zoom >= 15) return 30;
-            if (zoom >= 14) return 50;
-            if (zoom >= 13) return 100;
-            if (zoom >= 12) return 200;
-            return 500;
+        // Render top 10
+        function renderTop10() {
+            const grid = document.getElementById('top10Grid');
+            const maxValue = Math.max(...top10Data.map(d => d.value));
+
+            grid.innerHTML = top10Data.map((item, i) => `
+                <div class="top10-item">
+                    <span class="top10-rank">${i + 1}.</span>
+                    <span class="top10-name">${item.name}</span>
+                    <div class="top10-bar">
+                        <div class="top10-bar-fill" style="width: ${(item.value / maxValue) * 100}%"></div>
+                    </div>
+                    <span class="top10-value">${item.value} TWh</span>
+                </div>
+            `).join('');
         }
 
-        fetch('data/bangkok_viewer.json')
-            .then(r => r.json())
+        renderTop10();
+
+        // Panel toggle
+        const statsPanel = document.getElementById('statsPanel');
+        const panelHandle = document.getElementById('panelHandle');
+        const handleText = document.getElementById('handleText');
+        const toggleText = document.getElementById('toggleText');
+        const toggleIcon = document.getElementById('toggleIcon');
+
+        function updateToggleUI() {
+            const isHidden = statsPanel.classList.contains('hidden');
+            handleText.textContent = isHidden ? 'Tap to expand' : 'Tap to collapse';
+            toggleText.textContent = isHidden ? 'Expand' : 'Hide';
+            toggleIcon.innerHTML = isHidden
+                ? '<path d="M5 15l7-7 7 7"/>'
+                : '<path d="M19 9l-7 7-7-7"/>';
+        }
+
+        function togglePanel() {
+            statsPanel.classList.toggle('hidden');
+            updateToggleUI();
+        }
+
+        panelHandle.addEventListener('click', togglePanel);
+
+        // Load building data
+        let buildingsLayer = L.layerGroup().addTo(map);
+
+        fetch('bangkok_viewer.json')
+            .then(r => {
+                document.getElementById('loadingText').textContent = 'Parsing data...';
+                return r.json();
+            })
             .then(data => {
-                document.getElementById('loading').classList.add('hidden');
-                allFeatures = data.features;
-                updateVisibleBuildings();
-                updateStats();
-                generateBarChart();
-                generateRankings();
+                document.getElementById('loadingText').textContent = 'Rendering buildings...';
+
+                const features = data.features;
+                let totalArea = 0;
+                let solarReady = 0;
+                let solarPotential = 0;
+                let countLarge = 0, countMedium = 0, countSmall = 0;
+                let potLarge = 0, potMedium = 0, potSmall = 0;
+
+                features.forEach((f, i) => {
+                    const coords = f.geometry.coordinates[0];
+                    const area = f.properties.area_in_meters || 0;
+                    totalArea += area;
+
+                    // Calculate solar potential
+                    const potential = area * 0.7 * 5 * 0.2 * 365 / 1000; // MWh/year
+
+                    if (area >= 500) {
+                        countLarge++;
+                        potLarge += potential;
+                    } else if (area >= 50) {
+                        countMedium++;
+                        potMedium += potential;
+                        solarReady++;
+                    } else {
+                        countSmall++;
+                        potSmall += potential;
+                    }
+
+                    if (area >= 50) {
+                        solarReady++;
+                        solarPotential += potential;
+                    }
+
+                    // Convert coords
+                    let latLngs;
+                    if (coords[0] && Array.isArray(coords[0][0])) {
+                        latLngs = coords[0].map(c => [c[1], c[0]]);
+                    } else {
+                        latLngs = coords.map(c => [c[1], c[0]]);
+                    }
+
+                    const color = getColor(area);
+
+                    L.polygon(latLngs, {
+                        color: '#FF1493', // Magenta outline like SPECTRUM
+                        weight: 1,
+                        fillColor: color,
+                        fillOpacity: 0.6
+                    })
+                    .bindPopup(`
+                        <div style="font-family: Inter, sans-serif;">
+                            <b style="font-size: 14px;">Building Roof</b><br>
+                            <span style="color: #666;">Area:</span> <b>${area.toFixed(0)} m²</b><br>
+                            <span style="color: #666;">Solar:</span> <b>${potential.toFixed(1)} MWh/year</b><br>
+                            ${area >= 50 ? '<span style="color: #059669;">✓ Solar ready</span>' : '<span style="color: #DC2626;">Too small</span>'}
+                        </div>
+                    `)
+                    .addTo(buildingsLayer);
+                });
+
+                // Update stats (scaled to full dataset)
+                const scaleFactor = 3260000 / features.length;
+
+                document.getElementById('loading').style.display = 'none';
             })
             .catch(err => {
-                document.getElementById('loading').innerHTML = 'Error: ' + err.message;
+                document.getElementById('loadingText').textContent = 'Error: ' + err.message;
+                console.error(err);
             });
-
-        function updateVisibleBuildings() {
-            const zoom = map.getZoom();
-            const bounds = map.getBounds();
-            const minArea = getMinAreaForZoom(zoom);
-
-            const visibleFeatures = allFeatures.filter(f => {
-                const area = f.properties.area_in_meters || 0;
-                if (area < minArea) return false;
-                const coords = f.geometry.coordinates[0];
-                if (!coords || !coords[0]) return false;
-                let pt = coords[0];
-                if (Array.isArray(pt[0])) pt = pt[0];
-                return bounds.contains([pt[1], pt[0]]);
-            });
-
-            const maxBuildings = zoom >= 16 ? 20000 : zoom >= 14 ? 10000 : 5000;
-            renderBuildings(visibleFeatures.slice(0, maxBuildings));
-        }
-
-        function renderBuildings(features) {
-            buildingsLayer.clearLayers();
-
-            features.forEach(f => {
-                const coords = f.geometry.coordinates[0];
-                if (!coords || !coords[0]) return;
-
-                let ring = coords;
-                if (Array.isArray(coords[0]) && Array.isArray(coords[0][0])) ring = coords[0];
-
-                const area = f.properties.area_in_meters || 0;
-                const latLngs = ring.map(c => [c[1], c[0]]);
-                const color = area >= 500 ? '#e040fb' : area >= 100 ? '#ba68c8' : area >= 50 ? '#ce93d8' : '#ffb74d';
-
-                L.polygon(latLngs, {
-                    color: '#e040fb',
-                    weight: 1,
-                    fillColor: color,
-                    fillOpacity: 0.7
-                })
-                .bindPopup(`
-                    <div class="popup-title">Building Roof</div>
-                    <div class="popup-stat"><span>Area</span><span class="popup-stat-value">${area.toFixed(0)} m²</span></div>
-                    <div class="popup-stat"><span>Solar</span><span class="popup-stat-value">${(area * 0.7 * 5 * 0.2 * 365 / 1000).toFixed(1)} MWh/yr</span></div>
-                    <div class="popup-stat"><span>Value</span><span class="popup-stat-value">฿${Math.round(area * 0.7 * 5 * 0.2 * 365 * 4).toLocaleString()}/yr</span></div>
-                    <div class="popup-badge ${area >= 50 ? 'good' : 'small'}">${area >= 50 ? '✓ Solar Ready' : '⚠ Too Small'}</div>
-                `)
-                .addTo(buildingsLayer);
-            });
-        }
-
-        function updateStats() {
-            let residential = 0, commercial = 0, industrial = 0;
-            let totalArea = 0;
-
-            allFeatures.forEach(f => {
-                const area = f.properties.area_in_meters || 0;
-                totalArea += area;
-                if (area < 100) residential++;
-                else if (area < 500) commercial++;
-                else industrial++;
-            });
-
-            const total = allFeatures.length;
-            document.getElementById('pctResidential').textContent = ((residential/total)*100).toFixed(1) + '%';
-            document.getElementById('pctCommercial').textContent = ((commercial/total)*100).toFixed(1) + '%';
-            document.getElementById('pctIndustrial').textContent = ((industrial/total)*100).toFixed(1) + '%';
-        }
-
-        function generateBarChart() {
-            const chart = document.getElementById('barChart');
-            const bars = 30;
-            for (let i = 0; i < bars; i++) {
-                const height = 20 + Math.random() * 80;
-                const bar = document.createElement('div');
-                bar.className = 'bar';
-                bar.style.height = height + '%';
-                chart.appendChild(bar);
-            }
-        }
-
-        function generateRankings() {
-            const list = document.getElementById('rankingsList');
-            const maxPotential = 15;
-
-            districts.forEach((d, i) => {
-                const potential = (Math.random() * 10 + 5).toFixed(2);
-                const pct = (potential / maxPotential) * 100;
-
-                list.innerHTML += `
-                    <div class="ranking-item">
-                        <span class="rank-num">${i + 1}.</span>
-                        <span class="rank-name">${d.name}</span>
-                        <div class="rank-bar"><div class="rank-bar-fill" style="width:${pct}%"></div></div>
-                        <span class="rank-value">${potential} TWh</span>
-                    </div>
-                `;
-            });
-        }
-
-        map.on('zoomend moveend', updateVisibleBuildings);
-
-        function toggleDataPanel() {
-            const panel = document.getElementById('dataPanel');
-            const toggle = document.getElementById('panelToggle');
-            panel.classList.toggle('hidden');
-            toggle.classList.toggle('collapsed');
-            toggle.textContent = panel.classList.contains('hidden') ? '▶' : '◀';
-        }
-
-        function toggleLayer(layer) {
-            const toggle = document.getElementById('toggle' + layer.charAt(0).toUpperCase() + layer.slice(1));
-            toggle.classList.toggle('active');
-            if (layer === 'buildings') {
-                if (toggle.classList.contains('active')) map.addLayer(buildingsLayer);
-                else map.removeLayer(buildingsLayer);
-            }
-        }
-
-        function showInfo() {
-            alert('Bangkok Solar Roof\\n\\nData: Google Open Buildings V3\\nBuildings: 3.26 million\\nRoof Area: 460 km²\\nSolar Potential: 117.65 TWh/year\\nAnnual Value: ฿470 billion\\n\\nBuilt with Volt Oracle ⚡');
-        }
     </script>
 </body>
 </html>
