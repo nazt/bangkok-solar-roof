@@ -1,165 +1,523 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Bangkok Solar Roof - 3.26M Buildings</title>
+    <title>Bangkok Solar Roof</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * { box-sizing: border-box; }
-        body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
-        #map { height: 100vh; width: 100%; }
-        .info-panel {
-            position: absolute;
-            top: 10px;
-            right: 10px;
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: #0a0a1a; }
+
+        /* Header */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 2000;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.3);
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: white;
+            font-weight: 700;
+            font-size: 1.2em;
+        }
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #e040fb, #7c4dff);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4em;
+        }
+        .nav {
+            display: flex;
+            gap: 8px;
+            margin-left: 40px;
+        }
+        .nav a {
+            color: rgba(255,255,255,0.7);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .nav a:hover, .nav a.active {
+            color: white;
+            background: rgba(255,255,255,0.1);
+        }
+        .nav a.active { background: rgba(224,64,251,0.2); color: #e040fb; }
+
+        /* Map */
+        #map {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        /* Right Sidebar */
+        .sidebar {
+            position: fixed;
+            top: 80px;
+            right: 20px;
             background: white;
-            padding: 15px 20px;
             border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.15);
             z-index: 1000;
-            max-width: 320px;
+            width: 220px;
+            overflow: hidden;
         }
-        .info-panel h2 {
-            margin: 0 0 12px 0;
-            color: #e53935;
-            font-size: 1.4em;
-        }
-        .stat {
-            margin: 8px 0;
-            display: flex;
-            justify-content: space-between;
-        }
-        .stat-label { color: #666; }
-        .stat-value { font-weight: 600; color: #1976d2; }
-        .legend {
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid #eee;
-        }
-        .legend-item {
+        .sidebar-item {
             display: flex;
             align-items: center;
-            margin: 6px 0;
+            justify-content: space-between;
+            padding: 14px 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .sidebar-item:last-child { border-bottom: none; }
+        .sidebar-label {
             font-size: 0.9em;
+            color: #333;
+            font-weight: 500;
         }
-        .legend-color {
-            width: 16px;
-            height: 16px;
-            border-radius: 3px;
-            margin-right: 8px;
+        .toggle {
+            width: 44px;
+            height: 24px;
+            background: #e0e0e0;
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s;
         }
-        .loading {
+        .toggle.active { background: #e040fb; }
+        .toggle::after {
+            content: '';
             position: absolute;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: left 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .toggle.active::after { left: 22px; }
+
+        /* Bottom Panel */
+        .bottom-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            z-index: 1000;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+        }
+        .filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            background: #f8f8f8;
+            border-bottom: 1px solid #eee;
+        }
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            background: white;
+            font-size: 0.85em;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .btn:hover { border-color: #e040fb; color: #e040fb; }
+        .btn-reset { color: #e040fb; border-color: #e040fb; }
+        .selected-count {
+            background: #e040fb;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        .filter-dropdown {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            background: white;
+            font-size: 0.85em;
+            cursor: pointer;
+        }
+        .hide-btn {
+            margin-left: auto;
+            color: #e040fb;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .stats-panel {
+            display: flex;
+            padding: 20px 30px;
+            align-items: center;
+        }
+        .stats-title {
+            flex: 1;
+        }
+        .stats-title h3 {
+            font-size: 0.9em;
+            color: #666;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        .stats-title h2 {
+            font-size: 1.4em;
+            color: #1a1a2e;
+            font-weight: 700;
+        }
+        .stats-number {
+            text-align: right;
+        }
+        .big-number {
+            font-size: 3.5em;
+            font-weight: 700;
+            color: #e040fb;
+            line-height: 1;
+        }
+        .big-number span {
+            font-size: 0.4em;
+            color: #666;
+            font-weight: 500;
+        }
+        .stats-sub {
+            font-size: 0.85em;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        /* Search */
+        .search-box {
+            position: fixed;
+            bottom: 160px;
+            right: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 1000;
+        }
+        .search-box input {
+            border: none;
+            outline: none;
+            font-size: 0.9em;
+            width: 200px;
+        }
+        .search-box::before {
+            content: '🔍';
+        }
+
+        /* Loading */
+        .loading {
+            position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: white;
-            padding: 20px 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-            z-index: 2000;
+            background: #1a1a2e;
+            color: white;
+            padding: 20px 40px;
+            border-radius: 12px;
+            z-index: 3000;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
-        .hidden { display: none; }
-        a { color: #1976d2; }
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255,255,255,0.2);
+            border-top-color: #e040fb;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .hidden { display: none !important; }
+
+        /* Leaflet popup */
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        .leaflet-popup-content {
+            margin: 14px 16px;
+            font-family: 'Inter', sans-serif;
+        }
+        .popup-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #1a1a2e;
+        }
+        .popup-stat {
+            display: flex;
+            justify-content: space-between;
+            margin: 4px 0;
+            font-size: 0.9em;
+        }
+        .popup-stat-value { font-weight: 600; color: #e040fb; }
+        .popup-badge {
+            margin-top: 8px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+        .popup-badge.good { background: #e8f5e9; color: #2e7d32; }
+        .popup-badge.small { background: #fff3e0; color: #ef6c00; }
     </style>
 </head>
 <body>
-    <div id="loading" class="loading">Loading 50,000 buildings...</div>
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">
+            <div class="logo-icon">⚡</div>
+            <span>Bangkok Solar Roof</span>
+        </div>
+        <nav class="nav">
+            <a href="#" class="active">EXPLORE</a>
+            <a href="https://github.com/nazt/bangkok-solar-roof" target="_blank">GITHUB</a>
+            <a href="#" onclick="alert('Download coming soon!')">DOWNLOAD</a>
+            <a href="#" onclick="showInfo()">INFO</a>
+        </nav>
+    </header>
+
+    <!-- Loading -->
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        Loading 50,000 buildings...
+    </div>
+
+    <!-- Map -->
     <div id="map"></div>
-    <div class="info-panel">
-        <h2>⚡ Bangkok Solar Roof</h2>
-        <div class="stat">
-            <span class="stat-label">Buildings (sample)</span>
-            <span class="stat-value" id="count">-</span>
+
+    <!-- Right Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-item">
+            <span class="sidebar-label">☀️ Solar Buildings</span>
+            <div class="toggle active" id="toggleBuildings" onclick="toggleLayer('buildings')"></div>
         </div>
-        <div class="stat">
-            <span class="stat-label">Total Dataset</span>
-            <span class="stat-value">3,257,805</span>
+        <div class="sidebar-item">
+            <span class="sidebar-label">🗺️ District Boundary</span>
+            <div class="toggle" id="toggleDistrict" onclick="toggleLayer('district')"></div>
         </div>
-        <div class="stat">
-            <span class="stat-label">Total Roof Area</span>
-            <span class="stat-value" id="area">-</span>
+        <div class="sidebar-item">
+            <span class="sidebar-label">🌡️ Heatmap</span>
+            <div class="toggle" id="toggleHeatmap" onclick="toggleLayer('heatmap')"></div>
         </div>
-        <div class="stat">
-            <span class="stat-label">Solar Ready (≥50m²)</span>
-            <span class="stat-value" id="solar">-</span>
+    </div>
+
+    <!-- Search -->
+    <div class="search-box">
+        <input type="text" placeholder="Zoom to area (e.g. Sukhumvit)" id="searchInput" onkeypress="if(event.key==='Enter')searchArea()">
+    </div>
+
+    <!-- Bottom Panel -->
+    <div class="bottom-panel">
+        <div class="filter-bar">
+            <button class="btn btn-reset" onclick="resetFilters()">RESET</button>
+            <span class="selected-count" id="selectedCount">50,000 shown</span>
+            <select class="filter-dropdown" id="filterType" onchange="applyFilter()">
+                <option value="all">All Building Types</option>
+                <option value="residential">Residential (≤100m²)</option>
+                <option value="commercial">Commercial (100-500m²)</option>
+                <option value="industrial">Industrial (≥500m²)</option>
+            </select>
+            <label style="display:flex;align-items:center;gap:6px;font-size:0.85em;color:#666;cursor:pointer;">
+                <input type="checkbox" id="solarOnly" onchange="applyFilter()"> Solar ready only
+            </label>
+            <button class="hide-btn" onclick="togglePanel()">HIDE ▼</button>
         </div>
-        <div class="stat">
-            <span class="stat-label">Solar Potential</span>
-            <span class="stat-value">117.65 TWh/yr</span>
-        </div>
-        <div class="legend">
-            <div class="legend-item">
-                <div class="legend-color" style="background: #e53935;"></div>
-                Solar Ready (≥50m²)
+        <div class="stats-panel" id="statsPanel">
+            <div class="stats-title">
+                <h3>Total Estimated Solar Power Capacity</h3>
+                <h2>Bangkok, Thailand</h2>
             </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background: #ff9800;"></div>
-                Too Small (<50m²)
+            <div class="stats-number">
+                <div class="big-number" id="bigNumber">117.65 <span>TWh/year</span></div>
+                <div class="stats-sub" id="statsSub">3,257,805 buildings · 460.46 km² roof area</div>
             </div>
         </div>
-        <hr style="margin: 12px 0; border: none; border-top: 1px solid #eee;">
-        <small>Click any building for details<br>
-        Data: <a href="https://sites.research.google/open-buildings/" target="_blank">Google Open Buildings V3</a></small>
     </div>
 
     <script>
-        const map = L.map('map').setView([13.75, 100.50], 12);
+        // Initialize map
+        const map = L.map('map', { zoomControl: false }).setView([13.75, 100.50], 12);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
 
+        // Satellite layer
         L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-            attribution: 'Google Satellite | <a href="https://github.com/laris-co/bangkok-solar-roof">GitHub</a>'
+            attribution: 'Google Satellite'
         }).addTo(map);
 
+        let buildingsLayer = L.layerGroup().addTo(map);
+        let allFeatures = [];
+        let filteredFeatures = [];
+
+        // Load data
         fetch('data/bangkok_viewer.json')
             .then(r => r.json())
             .then(data => {
                 document.getElementById('loading').classList.add('hidden');
-
-                let totalArea = 0;
-                let solarReady = 0;
-                const features = data.features;
-
-                features.forEach(f => {
-                    const coords = f.geometry.coordinates[0];
-                    if (!coords || !coords[0]) return;
-
-                    // Handle nested coordinates
-                    let ring = coords;
-                    if (Array.isArray(coords[0]) && Array.isArray(coords[0][0])) {
-                        ring = coords[0];
-                    }
-
-                    const area = f.properties.area_in_meters || 0;
-                    totalArea += area;
-                    if (area >= 50) solarReady++;
-
-                    const latLngs = ring.map(c => [c[1], c[0]]);
-                    const color = area >= 50 ? '#e53935' : '#ff9800';
-
-                    L.polygon(latLngs, {
-                        color: color,
-                        weight: 1,
-                        fillColor: color,
-                        fillOpacity: 0.6
-                    })
-                    .bindPopup(`
-                        <b>Building Roof</b><br>
-                        Area: ${area.toFixed(1)} m²<br>
-                        Solar Potential: ${(area * 0.7 * 5 * 0.2 * 365 / 1000).toFixed(1)} MWh/year<br>
-                        ${area >= 50 ? '✅ Good for solar!' : '⚠️ Too small for solar'}
-                    `)
-                    .addTo(map);
-                });
-
-                document.getElementById('count').textContent = features.length.toLocaleString();
-                document.getElementById('area').textContent = (totalArea / 1e6).toFixed(2) + ' km²';
-                document.getElementById('solar').textContent = solarReady.toLocaleString() + ' (' + Math.round(solarReady/features.length*100) + '%)';
+                allFeatures = data.features;
+                filteredFeatures = allFeatures;
+                renderBuildings(allFeatures);
             })
             .catch(err => {
-                document.getElementById('loading').textContent = 'Error loading data: ' + err.message;
+                document.getElementById('loading').innerHTML = 'Error: ' + err.message;
             });
+
+        function renderBuildings(features) {
+            buildingsLayer.clearLayers();
+            let totalArea = 0;
+            let solarReady = 0;
+
+            features.forEach(f => {
+                const coords = f.geometry.coordinates[0];
+                if (!coords || !coords[0]) return;
+
+                let ring = coords;
+                if (Array.isArray(coords[0]) && Array.isArray(coords[0][0])) {
+                    ring = coords[0];
+                }
+
+                const area = f.properties.area_in_meters || 0;
+                totalArea += area;
+                if (area >= 50) solarReady++;
+
+                const latLngs = ring.map(c => [c[1], c[0]]);
+
+                // Magenta color scheme like SPECTRUM
+                const color = area >= 500 ? '#e040fb' : area >= 100 ? '#ba68c8' : area >= 50 ? '#ce93d8' : '#ffb74d';
+
+                L.polygon(latLngs, {
+                    color: '#e040fb',
+                    weight: 1,
+                    fillColor: color,
+                    fillOpacity: 0.7
+                })
+                .bindPopup(`
+                    <div class="popup-title">Building Roof</div>
+                    <div class="popup-stat"><span>Roof Area</span><span class="popup-stat-value">${area.toFixed(1)} m²</span></div>
+                    <div class="popup-stat"><span>Solar Potential</span><span class="popup-stat-value">${(area * 0.7 * 5 * 0.2 * 365 / 1000).toFixed(1)} MWh/yr</span></div>
+                    <div class="popup-stat"><span>Est. Value</span><span class="popup-stat-value">฿${(area * 0.7 * 5 * 0.2 * 365 * 4).toLocaleString()}/yr</span></div>
+                    <div class="popup-badge ${area >= 50 ? 'good' : 'small'}">${area >= 50 ? '✓ Solar Ready' : '⚠ Too Small'}</div>
+                `)
+                .addTo(buildingsLayer);
+            });
+
+            document.getElementById('selectedCount').textContent = features.length.toLocaleString() + ' shown';
+
+            // Update displayed stats based on filtered data
+            const solarPotential = (totalArea * 0.7 * 5 * 0.2 * 365 / 1e9).toFixed(2);
+            document.getElementById('statsSub').textContent =
+                `${features.length.toLocaleString()} buildings · ${(totalArea/1e6).toFixed(2)} km² roof area · ${solarReady.toLocaleString()} solar ready`;
+        }
+
+        function applyFilter() {
+            const filterType = document.getElementById('filterType').value;
+            const solarOnly = document.getElementById('solarOnly').checked;
+
+            filteredFeatures = allFeatures.filter(f => {
+                const area = f.properties.area_in_meters || 0;
+
+                if (solarOnly && area < 50) return false;
+
+                if (filterType === 'residential' && area > 100) return false;
+                if (filterType === 'commercial' && (area <= 100 || area > 500)) return false;
+                if (filterType === 'industrial' && area <= 500) return false;
+
+                return true;
+            });
+
+            renderBuildings(filteredFeatures);
+        }
+
+        function resetFilters() {
+            document.getElementById('filterType').value = 'all';
+            document.getElementById('solarOnly').checked = false;
+            filteredFeatures = allFeatures;
+            renderBuildings(allFeatures);
+        }
+
+        function toggleLayer(layer) {
+            const toggle = document.getElementById('toggle' + layer.charAt(0).toUpperCase() + layer.slice(1));
+            toggle.classList.toggle('active');
+
+            if (layer === 'buildings') {
+                if (toggle.classList.contains('active')) {
+                    map.addLayer(buildingsLayer);
+                } else {
+                    map.removeLayer(buildingsLayer);
+                }
+            }
+        }
+
+        function togglePanel() {
+            const panel = document.getElementById('statsPanel');
+            const btn = document.querySelector('.hide-btn');
+            panel.classList.toggle('hidden');
+            btn.textContent = panel.classList.contains('hidden') ? 'SHOW ▲' : 'HIDE ▼';
+        }
+
+        function searchArea() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const locations = {
+                'sukhumvit': [13.7367, 100.5609],
+                'silom': [13.7262, 100.5234],
+                'siam': [13.7466, 100.5347],
+                'chatuchak': [13.8199, 100.5533],
+                'thonburi': [13.7190, 100.4766],
+                'bangna': [13.6671, 100.6019],
+                'ladprao': [13.8167, 100.5619],
+                'ratchada': [13.7820, 100.5742],
+            };
+
+            if (locations[query]) {
+                map.setView(locations[query], 15);
+            } else {
+                alert('Area not found. Try: Sukhumvit, Silom, Siam, Chatuchak, Thonburi, Bangna, Ladprao, Ratchada');
+            }
+        }
+
+        function showInfo() {
+            alert('Bangkok Solar Roof POC\\n\\nData: Google Open Buildings V3\\nBuildings: 3.26 million\\nSolar Potential: 117.65 TWh/year\\n\\nBuilt with Volt Oracle 🇹🇭');
+        }
     </script>
 </body>
 </html>
