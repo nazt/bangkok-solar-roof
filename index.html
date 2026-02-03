@@ -973,7 +973,7 @@
         // Load building data
         let buildingsLayer = L.layerGroup().addTo(map);
 
-        fetch('bangkok_viewer.json')
+        fetch('data/bangkok_viewer.json')
             .then(r => {
                 document.getElementById('loadingText').textContent = 'Parsing data...';
                 return r.json();
