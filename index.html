@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bangkok Solar Roof - 3.26M Buildings</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+        #map { height: 100vh; width: 100%; }
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            max-width: 320px;
+        }
+        .info-panel h2 {
+            margin: 0 0 12px 0;
+            color: #e53935;
+            font-size: 1.4em;
+        }
+        .stat {
+            margin: 8px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        .stat-label { color: #666; }
+        .stat-value { font-weight: 600; color: #1976d2; }
+        .legend {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #eee;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 6px 0;
+            font-size: 0.9em;
+        }
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            margin-right: 8px;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 2000;
+        }
+        .hidden { display: none; }
+        a { color: #1976d2; }
+    </style>
+</head>
+<body>
+    <div id="loading" class="loading">Loading 50,000 buildings...</div>
+    <div id="map"></div>
+    <div class="info-panel">
+        <h2>⚡ Bangkok Solar Roof</h2>
+        <div class="stat">
+            <span class="stat-label">Buildings (sample)</span>
+            <span class="stat-value" id="count">-</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Total Dataset</span>
+            <span class="stat-value">3,257,805</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Total Roof Area</span>
+            <span class="stat-value" id="area">-</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Solar Ready (≥50m²)</span>
+            <span class="stat-value" id="solar">-</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Solar Potential</span>
+            <span class="stat-value">117.65 TWh/yr</span>
+        </div>
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #e53935;"></div>
+                Solar Ready (≥50m²)
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ff9800;"></div>
+                Too Small (<50m²)
+            </div>
+        </div>
+        <hr style="margin: 12px 0; border: none; border-top: 1px solid #eee;">
+        <small>Click any building for details<br>
+        Data: <a href="https://sites.research.google/open-buildings/" target="_blank">Google Open Buildings V3</a></small>
+    </div>
+
+    <script>
+        const map = L.map('map').setView([13.75, 100.50], 12);
+
+        L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            attribution: 'Google Satellite | <a href="https://github.com/laris-co/bangkok-solar-roof">GitHub</a>'
+        }).addTo(map);
+
+        fetch('data/bangkok_viewer.json')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('loading').classList.add('hidden');
+
+                let totalArea = 0;
+                let solarReady = 0;
+                const features = data.features;
+
+                features.forEach(f => {
+                    const coords = f.geometry.coordinates[0];
+                    if (!coords || !coords[0]) return;
+
+                    // Handle nested coordinates
+                    let ring = coords;
+                    if (Array.isArray(coords[0]) && Array.isArray(coords[0][0])) {
+                        ring = coords[0];
+                    }
+
+                    const area = f.properties.area_in_meters || 0;
+                    totalArea += area;
+                    if (area >= 50) solarReady++;
+
+                    const latLngs = ring.map(c => [c[1], c[0]]);
+                    const color = area >= 50 ? '#e53935' : '#ff9800';
+
+                    L.polygon(latLngs, {
+                        color: color,
+                        weight: 1,
+                        fillColor: color,
+                        fillOpacity: 0.6
+                    })
+                    .bindPopup(`
+                        <b>Building Roof</b><br>
+                        Area: ${area.toFixed(1)} m²<br>
+                        Solar Potential: ${(area * 0.7 * 5 * 0.2 * 365 / 1000).toFixed(1)} MWh/year<br>
+                        ${area >= 50 ? '✅ Good for solar!' : '⚠️ Too small for solar'}
+                    `)
+                    .addTo(map);
+                });
+
+                document.getElementById('count').textContent = features.length.toLocaleString();
+                document.getElementById('area').textContent = (totalArea / 1e6).toFixed(2) + ' km²';
+                document.getElementById('solar').textContent = solarReady.toLocaleString() + ' (' + Math.round(solarReady/features.length*100) + '%)';
+            })
+            .catch(err => {
+                document.getElementById('loading').textContent = 'Error loading data: ' + err.message;
+            });
+    </script>
+</body>
+</html>
