@@ -388,6 +388,17 @@
         let buildingsLayer = L.layerGroup().addTo(map);
         let allFeatures = [];
         let filteredFeatures = [];
+        let currentZoom = 12;
+
+        // Zoom-based LOD: min building size for each zoom level
+        function getMinAreaForZoom(zoom) {
+            if (zoom >= 17) return 0;      // Show all
+            if (zoom >= 15) return 30;     // Show ≥30m²
+            if (zoom >= 14) return 50;     // Show ≥50m²
+            if (zoom >= 13) return 100;    // Show ≥100m²
+            if (zoom >= 12) return 200;    // Show ≥200m²
+            return 500;                     // Show only large buildings
+        }
 
         // Load data
         fetch('data/bangkok_viewer.json')
@@ -396,13 +407,44 @@
                 document.getElementById('loading').classList.add('hidden');
                 allFeatures = data.features;
                 filteredFeatures = allFeatures;
-                renderBuildings(allFeatures);
+                updateVisibleBuildings();
             })
             .catch(err => {
                 document.getElementById('loading').innerHTML = 'Error: ' + err.message;
             });
 
-        function renderBuildings(features) {
+        // Update buildings based on zoom and bounds
+        function updateVisibleBuildings() {
+            const zoom = map.getZoom();
+            const bounds = map.getBounds();
+            const minArea = getMinAreaForZoom(zoom);
+
+            // Filter by bounds and min area
+            const visibleFeatures = filteredFeatures.filter(f => {
+                const area = f.properties.area_in_meters || 0;
+                if (area < minArea) return false;
+
+                // Check if in bounds
+                const coords = f.geometry.coordinates[0];
+                if (!coords || !coords[0]) return false;
+                let pt = coords[0];
+                if (Array.isArray(pt[0])) pt = pt[0];
+                return bounds.contains([pt[1], pt[0]]);
+            });
+
+            // Limit to prevent browser freeze
+            const maxBuildings = zoom >= 16 ? 20000 : zoom >= 14 ? 10000 : 5000;
+            const toRender = visibleFeatures.slice(0, maxBuildings);
+
+            renderBuildings(toRender, minArea);
+
+            // Show zoom hint
+            const hint = minArea > 0 ? ` (showing ≥${minArea}m²)` : ' (all sizes)';
+            document.getElementById('selectedCount').textContent =
+                toRender.length.toLocaleString() + ' shown' + hint;
+        }
+
+        function renderBuildings(features, minArea = 0) {
             buildingsLayer.clearLayers();
             let totalArea = 0;
             let solarReady = 0;
@@ -441,13 +483,12 @@
                 .addTo(buildingsLayer);
             });
 
-            document.getElementById('selectedCount').textContent = features.length.toLocaleString() + ' shown';
-
-            // Update displayed stats based on filtered data
-            const solarPotential = (totalArea * 0.7 * 5 * 0.2 * 365 / 1e9).toFixed(2);
             document.getElementById('statsSub').textContent =
-                `${features.length.toLocaleString()} buildings · ${(totalArea/1e6).toFixed(2)} km² roof area · ${solarReady.toLocaleString()} solar ready`;
+                `${features.length.toLocaleString()} visible · ${(totalArea/1e6).toFixed(2)} km² · ${solarReady.toLocaleString()} solar ready`;
         }
+
+        // Listen to map events
+        map.on('zoomend moveend', updateVisibleBuildings);
 
         function applyFilter() {
             const filterType = document.getElementById('filterType').value;
@@ -465,14 +506,14 @@
                 return true;
             });
 
-            renderBuildings(filteredFeatures);
+            updateVisibleBuildings();
         }
 
         function resetFilters() {
             document.getElementById('filterType').value = 'all';
             document.getElementById('solarOnly').checked = false;
             filteredFeatures = allFeatures;
-            renderBuildings(allFeatures);
+            updateVisibleBuildings();
         }
 
         function toggleLayer(layer) {
