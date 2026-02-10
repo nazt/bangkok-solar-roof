@@ -27,18 +27,41 @@
             font-size: 22px;
             color: #14B8A6;
         }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
         .header span {
             font-size: 13px;
             color: #666;
+        }
+        .toggle-btn {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #F59E0B;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .toggle-btn:hover { background: rgba(245, 158, 11, 0.25); }
+        .toggle-btn.active {
+            background: rgba(245, 158, 11, 0.3);
+            border-color: #F59E0B;
+        }
+        .toggle-btn.loading {
+            opacity: 0.6;
+            cursor: wait;
         }
         .main {
             flex: 1;
             display: flex;
             overflow: hidden;
         }
-        #map {
-            flex: 1;
-        }
+        #map { flex: 1; }
         .sidebar {
             width: 420px;
             padding: 20px;
@@ -84,9 +107,7 @@
         }
         .formula .hl { color: #14B8A6; }
         .formula .amber { color: #F59E0B; }
-        .tile-preview {
-            text-align: center;
-        }
+        .tile-preview { text-align: center; }
         .tile-preview img {
             width: 256px;
             height: 256px;
@@ -131,12 +152,38 @@
         .places button:hover {
             background: rgba(20, 184, 166, 0.25);
         }
+        .building-info {
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            border-radius: 8px;
+            padding: 12px;
+            display: none;
+        }
+        .building-info.visible { display: block; }
+        .building-info h4 {
+            font-size: 12px;
+            color: #F59E0B;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .stats-bar {
+            font-size: 11px;
+            color: #666;
+            padding: 4px 0;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>Lat/Lon → Tile Mapping Proof</h1>
-        <span>Click anywhere on the map — see the tile</span>
+        <div class="header-right">
+            <button class="toggle-btn" id="buildingToggle" onclick="toggleBuildings()">
+                Show Buildings (100K)
+            </button>
+            <span>Click map or building</span>
+        </div>
     </div>
     <div class="main">
         <div id="map"></div>
@@ -152,6 +199,14 @@
                 </div>
             </div>
 
+            <div class="building-info" id="buildingInfo">
+                <h4>Selected Building</h4>
+                <div class="row"><span class="label">Area</span><span class="value" id="bldgArea">—</span></div>
+                <div class="row"><span class="label">Confidence</span><span class="value" id="bldgConf">—</span></div>
+                <div class="row"><span class="label">Plus Code</span><span class="value" id="bldgPlus">—</span></div>
+                <div class="row"><span class="label">Solar Potential</span><span class="value" id="bldgSolar">—</span></div>
+            </div>
+
             <div class="card">
                 <h3>1. Input — Building Location</h3>
                 <div class="row"><span class="label">Latitude</span><span class="value" id="lat">13.7463</span></div>
@@ -159,20 +214,20 @@
                 <div class="row"><span class="label">Zoom</span><span class="value">19</span></div>
             </div>
 
-            <div class="arrow-flow">↓</div>
+            <div class="arrow-flow">&darr;</div>
 
             <div class="card">
                 <h3>2. Conversion Formula</h3>
                 <div class="formula" id="formula">n = 2^19 = <span class="hl">524,288</span>
 
-x = floor((<span class="amber">100.5347</span> + 180) / 360 × n)
+x = floor((<span class="amber">100.5347</span> + 180) / 360 &times; n)
 x = <span class="hl">408,370</span>
 
-y = floor((1 - asinh(tan(<span class="amber">0.2399</span>)) / π) / 2 × n)
+y = floor((1 - asinh(tan(<span class="amber">0.2399</span>)) / &pi;) / 2 &times; n)
 y = <span class="hl">243,015</span></div>
             </div>
 
-            <div class="arrow-flow">↓</div>
+            <div class="arrow-flow">&darr;</div>
 
             <div class="card">
                 <h3>3. Result — Satellite Tile</h3>
@@ -185,6 +240,7 @@ y = <span class="hl">243,015</span></div>
                 </div>
             </div>
 
+            <div id="statsBar" class="stats-bar"></div>
             <div class="hint">Click the map to try any location</div>
         </div>
     </div>
@@ -193,12 +249,14 @@ y = <span class="hl">243,015</span></div>
     <script>
         const ZOOM = 19;
         const N = Math.pow(2, ZOOM);
+        const DATA_URL = 'https://bangkok-solar-roof.vercel.app/data/bangkok_viewer.json';
 
         // Map setup
         const map = L.map('map', {
             center: [13.7463, 100.5347],
             zoom: 17,
-            maxZoom: 20
+            maxZoom: 20,
+            preferCanvas: true
         });
 
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -208,7 +266,133 @@ y = <span class="hl">243,015</span></div>
 
         let marker = null;
         let tileRect = null;
+        let highlightLayer = null;
 
+        // ---- Buildings layer ----
+        let allFeatures = null;
+        let buildingsLayer = null;
+        let buildingsVisible = false;
+        let buildingsLoaded = false;
+
+        function toggleBuildings() {
+            const btn = document.getElementById('buildingToggle');
+            if (!buildingsLoaded && !buildingsVisible) {
+                btn.textContent = 'Loading...';
+                btn.classList.add('loading');
+                fetch(DATA_URL)
+                    .then(r => r.json())
+                    .then(data => {
+                        allFeatures = data.features;
+                        buildingsLoaded = true;
+                        buildingsVisible = true;
+                        btn.classList.remove('loading');
+                        btn.classList.add('active');
+                        btn.textContent = 'Hide Buildings (' + allFeatures.length.toLocaleString() + ')';
+                        renderBuildings();
+                        map.on('moveend', renderBuildings);
+                    })
+                    .catch(err => {
+                        btn.textContent = 'Failed — retry';
+                        btn.classList.remove('loading');
+                        console.error(err);
+                    });
+            } else if (buildingsVisible) {
+                buildingsVisible = false;
+                btn.classList.remove('active');
+                btn.textContent = 'Show Buildings (' + allFeatures.length.toLocaleString() + ')';
+                if (buildingsLayer) map.removeLayer(buildingsLayer);
+            } else {
+                buildingsVisible = true;
+                btn.classList.add('active');
+                btn.textContent = 'Hide Buildings (' + allFeatures.length.toLocaleString() + ')';
+                renderBuildings();
+            }
+        }
+
+        function renderBuildings() {
+            if (!allFeatures || !buildingsVisible) return;
+            const bounds = map.getBounds();
+            const zoom = map.getZoom();
+
+            // Only render at zoom >= 15 (otherwise too many)
+            if (zoom < 15) {
+                if (buildingsLayer) map.removeLayer(buildingsLayer);
+                document.getElementById('statsBar').textContent = 'Zoom in to see buildings (zoom 15+)';
+                return;
+            }
+
+            const visible = allFeatures.filter(f => {
+                const c = f.properties.longitude_latitude.coordinates;
+                return bounds.contains([c[1], c[0]]);
+            });
+
+            if (buildingsLayer) map.removeLayer(buildingsLayer);
+
+            const maxRender = 5000;
+            const rendered = visible.slice(0, maxRender);
+
+            buildingsLayer = L.geoJSON({ type: 'FeatureCollection', features: rendered }, {
+                style: function(feature) {
+                    const area = feature.properties.area_in_meters;
+                    let color = '#9CA3AF';
+                    if (area >= 500) color = '#EF4444';
+                    else if (area >= 50) color = '#F59E0B';
+                    return {
+                        color: color,
+                        weight: 1.5,
+                        fillColor: color,
+                        fillOpacity: 0.25
+                    };
+                },
+                onEachFeature: function(feature, layer) {
+                    layer.on('click', function(e) {
+                        L.DomEvent.stopPropagation(e);
+                        selectBuilding(feature, e.latlng);
+                    });
+                }
+            }).addTo(map);
+
+            const truncated = visible.length > maxRender ? ` (showing ${maxRender.toLocaleString()})` : '';
+            document.getElementById('statsBar').textContent =
+                `${visible.length.toLocaleString()} buildings in view${truncated}`;
+        }
+
+        function selectBuilding(feature, latlng) {
+            const props = feature.properties;
+            const coords = props.longitude_latitude.coordinates;
+            const lat = coords[1];
+            const lon = coords[0];
+            const area = props.area_in_meters;
+
+            // Show building info
+            const info = document.getElementById('buildingInfo');
+            info.classList.add('visible');
+            document.getElementById('bldgArea').textContent = area.toFixed(1) + ' m\u00B2';
+            document.getElementById('bldgConf').textContent = (props.confidence * 100).toFixed(1) + '%';
+            document.getElementById('bldgPlus').textContent = props.full_plus_code || '—';
+
+            // Solar potential: E = A × 0.70 × 5.0 × 0.20 × 365 × 0.78
+            const usable = area * 0.70;
+            const annual = usable * 5.0 * 0.20 * 365 * 0.78;
+            if (annual > 1000000) {
+                document.getElementById('bldgSolar').textContent = (annual / 1000000).toFixed(1) + ' GWh/yr';
+            } else if (annual > 1000) {
+                document.getElementById('bldgSolar').textContent = (annual / 1000).toFixed(1) + ' MWh/yr';
+            } else {
+                document.getElementById('bldgSolar').textContent = annual.toFixed(0) + ' kWh/yr';
+            }
+
+            // Highlight building
+            if (highlightLayer) map.removeLayer(highlightLayer);
+            highlightLayer = L.geoJSON(feature, {
+                style: { color: '#14B8A6', weight: 3, fillColor: '#14B8A6', fillOpacity: 0.4 }
+            }).addTo(map);
+
+            // Update tile info
+            updateTile(lat, lon, `Building (${area.toFixed(0)} m\u00B2)`);
+        }
+
+        // ---- Tile logic ----
         function latLonToTile(lat, lon, zoom) {
             const n = Math.pow(2, zoom);
             const x = Math.floor((lon + 180) / 360 * n);
@@ -229,42 +413,34 @@ y = <span class="hl">243,015</span></div>
             const tile = latLonToTile(lat, lon, ZOOM);
             const latRad = (lat * Math.PI / 180).toFixed(4);
 
-            // Update sidebar
             document.getElementById('lat').textContent = lat.toFixed(6);
             document.getElementById('lon').textContent = lon.toFixed(6);
             document.getElementById('tileX').textContent = tile.x.toLocaleString();
             document.getElementById('tileY').textContent = tile.y.toLocaleString();
             document.getElementById('filename').textContent = `19_${tile.x}_${tile.y}.jpg`;
 
-            // Formula
             document.getElementById('formula').innerHTML =
                 `n = 2^19 = <span class="hl">524,288</span>\n\n` +
-                `x = floor((<span class="amber">${lon.toFixed(4)}</span> + 180) / 360 × n)\n` +
+                `x = floor((<span class="amber">${lon.toFixed(4)}</span> + 180) / 360 \u00d7 n)\n` +
                 `x = <span class="hl">${tile.x.toLocaleString()}</span>\n\n` +
-                `y = floor((1 - asinh(tan(<span class="amber">${latRad}</span>)) / π) / 2 × n)\n` +
+                `y = floor((1 - asinh(tan(<span class="amber">${latRad}</span>)) / \u03c0) / 2 \u00d7 n)\n` +
                 `y = <span class="hl">${tile.y.toLocaleString()}</span>`;
 
-            // Tile image
             const url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${ZOOM}/${tile.y}/${tile.x}`;
             document.getElementById('tileImg').src = url;
             document.getElementById('tileLink').href = url;
             document.getElementById('tileUrl').textContent = url;
 
-            // Marker
             if (marker) map.removeLayer(marker);
             marker = L.circleMarker([lat, lon], {
-                radius: 8,
-                color: '#F59E0B',
-                fillColor: '#F59E0B',
-                fillOpacity: 0.8,
-                weight: 2
+                radius: 8, color: '#F59E0B', fillColor: '#F59E0B',
+                fillOpacity: 0.8, weight: 2
             }).addTo(map).bindPopup(
                 `<b>${label || 'Selected'}</b><br>` +
                 `${lat.toFixed(6)}, ${lon.toFixed(6)}<br>` +
                 `Tile: ${tile.x}, ${tile.y}`
             ).openPopup();
 
-            // Draw tile boundary on map
             if (tileRect) map.removeLayer(tileRect);
             const nw = tileToLatLon(tile.x, tile.y, ZOOM);
             const se = tileToLatLon(tile.x + 1, tile.y + 1, ZOOM);
@@ -281,9 +457,11 @@ y = <span class="hl">243,015</span></div>
 
         map.on('click', function(e) {
             updateTile(e.latlng.lat, e.latlng.lng);
+            document.getElementById('buildingInfo').classList.remove('visible');
+            if (highlightLayer) map.removeLayer(highlightLayer);
         });
 
-        // Initial load
+        // Initial
         updateTile(13.7463, 100.5347, 'Siam Paragon');
     </script>
 </body>
